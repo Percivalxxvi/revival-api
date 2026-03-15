@@ -60,3 +60,14 @@ class AdminCreate(BaseModel):
 class AdminLoginSchema(BaseModel):
     email: str
     password: str
+
+class PrayerRequestSchema(BaseModel):
+    name: str
+    request: str
+
+class PrayerStatusUpdate(BaseModel):
+    status: str  # "pending" | "prayed"
+
+class ChangePasswordSchema(BaseModel):
+    current_password: str
+    new_password: str

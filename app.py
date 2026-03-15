@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from dotenv import load_dotenv
 from datetime import datetime
-from model import UserCreate, LoginSchema, OTPVerify, PasswordUpdate, PostCreate, LikeToggle, View, AdminCreate, AdminLoginSchema
+from model import UserCreate, LoginSchema, OTPVerify, PasswordUpdate, PostCreate, LikeToggle, View, AdminCreate, AdminLoginSchema, PrayerRequestSchema, PrayerStatusUpdate
 import os
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -47,6 +47,7 @@ user_collection = db.get_collection("Users")
 post_collection = db.get_collection("Posts")
 like_collection = db.get_collection("Likes") 
 view_collection = db.get_collection("Views")
+prayer_collection = db.get_collection("Prayers")
 
 # -----------------------------
 # FastAPI App
@@ -212,20 +213,21 @@ async def login(login: LoginSchema):
     }
 
 
-@app.post("/update-password", tags=["Auth"])
-async def update_password(payload: PasswordUpdate):
+# ── CHANGE PASSWORD ────────────────────────────────────────
 
-    user = user_collection.find_one({"_id": payload.user_id})
+@app.put("/auth/change-password", tags=["Auth"])
+async def change_password(body: ChangePasswordSchema, current_user: dict = Depends(get_current_user)):
+    if not verifyHashed(current_user["password"], body.current_password):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
     user_collection.update_one(
-        {"_id": payload.user_id},
-        {"$set": {"password": hashedpassword(payload.password[:72])}}
+        {"_id": current_user["_id"]},
+        {"$set": {"password": hashedpassword(body.new_password[:72])}}
     )
-
-    return {"message": "Password updated successfully"}
+    return {"message": "Password changed successfully"}
 
 # -----------------------------
 # USER ROUTES
@@ -595,6 +597,67 @@ async def get_dashboard(admin: dict = Depends(admin_required)):
 # )
 
 # print("Password updated:", new_hashed_password)
+
+# ── PRAYER REQUESTS ────────────────────────────────────────
+
+@app.post("/prayer-requests", tags=["Prayers"])
+async def submit_prayer_request(body: PrayerRequestSchema, request: Request):
+    # Try to get user from token if logged in
+    user_id = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        try:
+            token = auth_header.split(" ")[1]
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("user_id")
+        except:
+            pass
+
+    prayer_id = str(uuid.uuid4())
+    prayer = {
+        "_id": prayer_id,
+        "user_id": user_id,  # None if guest
+        "name": body.get("name"),
+        "request": body.get("request"),
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    prayer_collection.insert_one(prayer)
+    return {"message": "Prayer request submitted", "prayer": prayer}
+
+
+@app.get("/prayer-requests/me", tags=["Prayers"])
+async def get_my_prayer_requests(current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["_id"])
+    prayers = list(prayer_collection.find({"user_id": user_id}))
+    return {"prayer_requests": [serialize(p) for p in prayers]}
+
+
+@app.get("/admin/prayer-requests", tags=["Admin"])
+async def get_all_prayer_requests(admin: dict = Depends(admin_required)):
+    prayers = list(prayer_collection.find())
+    return {"prayer_requests": [serialize(p) for p in prayers]}
+
+
+@app.patch("/admin/prayer-requests/{prayer_id}/status", tags=["Admin"])
+async def update_prayer_status(prayer_id: str, body: PrayerStatusUpdate, admin: dict = Depends(admin_required)):
+    status = body.get("status")
+    if status not in ("pending", "prayed"):
+        raise HTTPException(status_code=400, detail="Status must be 'pending' or 'prayed'")
+    prayer = prayer_collection.find_one({"_id": prayer_id})
+    if not prayer:
+        raise HTTPException(status_code=404, detail="Prayer request not found")
+    prayer_collection.update_one({"_id": prayer_id}, {"$set": {"status": status}})
+    return {"message": "Status updated"}
+
+
+@app.delete("/admin/prayer-requests/{prayer_id}", tags=["Admin"])
+async def delete_prayer_request(prayer_id: str, admin: dict = Depends(admin_required)):
+    prayer = prayer_collection.find_one({"_id": prayer_id})
+    if not prayer:
+        raise HTTPException(status_code=404, detail="Prayer request not found")
+    prayer_collection.delete_one({"_id": prayer_id})
+    return {"message": "Prayer request deleted"}
 
 import threading
 import time
