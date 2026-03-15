@@ -10,6 +10,7 @@ from model import UserCreate, LoginSchema, OTPVerify, PasswordUpdate, PostCreate
 import os
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+from fastapi import Request
 
 from astrapy import DataAPIClient
 from utilities import hashedpassword, verifyHashed, generate_otp, send_email
@@ -97,7 +98,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         print("PAYLOAD:", payload)  # and this
-        user_id: str = payload.get("id")
+        user_id: str = payload.get("user_id")
 
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
@@ -618,7 +619,7 @@ async def submit_prayer_request(body: PrayerRequestSchema, request: Request):
         "_id": prayer_id,
         "user_id": user_id,
         "name": body.name,
-        "request": body.prayer_request,  # store as "request" in DB
+        "request": body.request,  # store as "request" in DB
         "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -626,12 +627,30 @@ async def submit_prayer_request(body: PrayerRequestSchema, request: Request):
     return {"message": "Prayer request submitted", "prayer": prayer}
 
 
+# @app.get("/prayer-requests/me", tags=["Prayers"])
+# async def get_my_prayer_requests(current_user: dict = Depends(get_current_user)):
+#     user_id = str(current_user["_id"])
+#     prayers = list(prayer_collection.find({"user_id": user_id}))
+#     return {"prayer_requests": [serialize(p) for p in prayers]}
+
 @app.get("/prayer-requests/me", tags=["Prayers"])
-async def get_my_prayer_requests(current_user: dict = Depends(get_current_user)):
-    user_id = str(current_user["_id"])
+async def get_my_prayer_requests(request: Request):
+    auth_header = request.headers.get("Authorization")
+    
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    try:
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
     prayers = list(prayer_collection.find({"user_id": user_id}))
     return {"prayer_requests": [serialize(p) for p in prayers]}
-
 
 @app.get("/admin/prayer-requests", tags=["Admin"])
 async def get_all_prayer_requests(admin: dict = Depends(admin_required)):
@@ -658,6 +677,54 @@ async def delete_prayer_request(prayer_id: str, admin: dict = Depends(admin_requ
         raise HTTPException(status_code=404, detail="Prayer request not found")
     prayer_collection.delete_one({"_id": prayer_id})
     return {"message": "Prayer request deleted"}
+
+
+# ── FAVOURITES ─────────────────────────────────────────────
+
+@app.post("/posts/{post_id}/favourite", tags=["Favourites"])
+async def toggle_favourite(post_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["_id"])
+    existing = like_collection.find_one({"user_id": user_id, "post_id": post_id})
+    
+    if existing:
+        like_collection.delete_one({"user_id": user_id, "post_id": post_id})
+        return {"message": "Removed from favourites", "favourited": False}
+    
+    like_collection.insert_one({
+        "_id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "post_id": post_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    return {"message": "Added to favourites", "favourited": True}
+
+
+@app.get("/favourites/me", tags=["Favourites"])
+async def get_my_favourites(current_user: dict = Depends(get_current_user)):
+    user_id = str(current_user["_id"])
+    favs = list(like_collection.find({"user_id": user_id}))
+    
+    # Fetch the actual post data for each favourite
+    posts = []
+    for fav in favs:
+        post = post_collection.find_one({"_id": fav["post_id"]})
+        if post:
+            posts.append(serialize(post))
+    
+    return {"favourites": posts}
+
+
+# ── USER PROFILE (for join date) ───────────────────────────
+
+@app.get("/auth/me", tags=["Auth"])
+async def get_me(current_user: dict = Depends(get_current_user)):
+    return {
+        "id": str(current_user["_id"]),
+        "name": current_user.get("name"),
+        "email": current_user.get("email"),
+        "role": current_user.get("role"),
+        "created_at": current_user.get("created_at")
+    }
 
 import threading
 import time
