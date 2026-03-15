@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from dotenv import load_dotenv
 from datetime import datetime
-from model import UserCreate, LoginSchema, OTPVerify, PasswordUpdate, PostCreate, LikeToggle, View, AdminCreate, AdminLoginSchema, PrayerRequestSchema, PrayerStatusUpdate
+from model import UserCreate, LoginSchema, OTPVerify, PasswordUpdate, PostCreate, LikeToggle, View, AdminCreate, AdminLoginSchema, PrayerRequestSchema, PrayerStatusUpdate, ChangePasswordSchema
 import os
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
