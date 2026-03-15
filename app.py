@@ -616,9 +616,9 @@ async def submit_prayer_request(body: PrayerRequestSchema, request: Request):
     prayer_id = str(uuid.uuid4())
     prayer = {
         "_id": prayer_id,
-        "user_id": user_id,  # None if guest
-        "name": body.get("name"),
-        "request": body.get("request"),
+        "user_id": user_id,
+        "name": body.name,
+        "request": body.prayer_request,  # store as "request" in DB
         "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat()
     }

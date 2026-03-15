@@ -63,7 +63,7 @@ class AdminLoginSchema(BaseModel):
 
 class PrayerRequestSchema(BaseModel):
     name: str
-    request: str
+    prayer_request: str
 
 class PrayerStatusUpdate(BaseModel):
     status: str  # "pending" | "prayed"
