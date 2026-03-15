@@ -660,13 +660,14 @@ async def get_all_prayer_requests(admin: dict = Depends(admin_required)):
 
 @app.patch("/admin/prayer-requests/{prayer_id}/status", tags=["Admin"])
 async def update_prayer_status(prayer_id: str, body: PrayerStatusUpdate, admin: dict = Depends(admin_required)):
-    status = body.get("status")
-    if status not in ("pending", "prayed"):
+    if body.status not in ("pending", "prayed"):
         raise HTTPException(status_code=400, detail="Status must be 'pending' or 'prayed'")
+    
     prayer = prayer_collection.find_one({"_id": prayer_id})
     if not prayer:
         raise HTTPException(status_code=404, detail="Prayer request not found")
-    prayer_collection.update_one({"_id": prayer_id}, {"$set": {"status": status}})
+    
+    prayer_collection.update_one({"_id": prayer_id}, {"$set": {"status": body.status}})
     return {"message": "Status updated"}
 
 
