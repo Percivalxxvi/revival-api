@@ -736,7 +736,7 @@ def keep_alive():
         time.sleep(20 * 60 * 60)  # 20 hours
         try:
             # Ping your own API to keep Astra active
-            requests.get("http://localhost:8000/ping", timeout=10)
+            requests.get("https://revival-api-rzf5.onrender.com/ping", timeout=10)
             print("Keep-alive ping sent")
         except Exception as e:
             print("Keep-alive error:", e)
