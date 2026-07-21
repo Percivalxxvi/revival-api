@@ -729,27 +729,27 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 import threading
 import time
-import requests
+import logging
+
+logger = logging.getLogger("keep_alive")
 
 def keep_alive():
     while True:
-        time.sleep(20 * 60 * 60)  # 20 hours
         try:
-            # Ping your own API to keep Astra active
-            requests.get("http://localhost:8000/ping", timeout=10)
-            print("Keep-alive ping sent")
+            # Touch the database directly so Astra registers activity
+            user_collection.find_one({})
+            logger.info("Keep-alive ping sent")
         except Exception as e:
-            print("Keep-alive error:", e)
+            logger.error(f"Keep-alive error: {e}")
+        time.sleep(20 * 60 * 60)  # 20 hours
 
 @app.get("/ping", tags=["Health"])
 async def ping():
-    # Touches the database so Astra registers activity
     user_collection.find_one({})
     return {"status": "ok"}
 
-# Start keep-alive thread when app starts
 @app.on_event("startup")
 async def startup_event():
     thread = threading.Thread(target=keep_alive, daemon=True)
     thread.start()
-    print("Keep-alive thread started")
+    logger.info("Keep-alive thread started")
