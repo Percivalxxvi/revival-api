@@ -6,14 +6,14 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from dotenv import load_dotenv
 from datetime import datetime
-from model import UserCreate, LoginSchema, OTPVerify, PasswordUpdate, PostCreate, LikeToggle, View, AdminCreate, AdminLoginSchema, PrayerRequestSchema, PrayerStatusUpdate, ChangePasswordSchema
+from model import UserCreate, LoginSchema, PasswordUpdate, PostCreate, LikeToggle, View, AdminCreate, AdminLoginSchema, PrayerRequestSchema, PrayerStatusUpdate, ChangePasswordSchema
 import os
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from fastapi import Request
 
 from astrapy import DataAPIClient
-from utilities import hashedpassword, verifyHashed, generate_otp, send_email
+from utilities import hashedpassword, verifyHashed
 
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
@@ -140,51 +140,23 @@ async def signup(user: UserCreate):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    otp = generate_otp()
-
     new_user = {
         "name": user.name,
         "email": user.email,
         "password": hashedpassword(user.password[:72]),
-        "role": "user",  # default role
-        "otp": otp,
-        "is_active": False,
+        "role": "user",
+        "is_active": True,
         "created_at": datetime.utcnow().isoformat()
     }
 
     result = user_collection.insert_one(new_user)
 
-    try:
-        send_email(user.email, "Revival Network Commisiion OTP Verification", f"Welcome to Revival Network Commission, Your OTP code is {otp}")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to send OTP email")
-
     return {
-        "message": "User created successfully. Check your email for OTP.",
+        "message": "User created successfully",
         "user": {
-        "id": str(result.inserted_id)
+            "id": str(result.inserted_id)
+        }
     }
-    }
-    
-
-
-@app.post("/verify-otp", tags=["Auth"])
-async def verify_otp(payload: OTPVerify):
-
-    user = user_collection.find_one({"_id": payload.user_id})
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if user.get("otp") != payload.otp:
-        raise HTTPException(status_code=400, detail="Invalid OTP")
-
-    user_collection.update_one(
-        {"_id": payload.user_id},
-        {"$set": {"is_active": True}, "$unset": {"otp": ""}}
-    )
-
-    return {"message": "OTP verified successfully"}
 
 
 @app.post("/login", tags=["Auth"])
