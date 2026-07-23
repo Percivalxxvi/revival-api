@@ -62,7 +62,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://revivalnetworkcommission.com", "https://www.revivalnetworkcommission.com"],
+    allow_origins=["http://localhost:5173", "https://revivalnetworkcommission1.vercel.app"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
