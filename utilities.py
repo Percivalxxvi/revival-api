@@ -13,8 +13,11 @@ def hashedpassword(password):
     return hashed
 
 def verifyHashed(hashedpassword,password):
-    value=ph.verify(hashedpassword,password)
-    return value
+    try:
+        value=ph.verify(hashedpassword,password)
+        return value
+    except Exception:
+        return False
 
 
 
