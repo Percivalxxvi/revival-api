@@ -54,6 +54,7 @@ def send_email(receiver: str, subject: str, body: str):
 
     except Exception as e:
         print("Email failed:", e)
+        raise
 
 
 
