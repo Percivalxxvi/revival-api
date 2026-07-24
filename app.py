@@ -148,20 +148,20 @@ async def signup(user: UserCreate):
         "email": user.email,
         "password": hashedpassword(user.password[:72]),
         "role": "user",
-        "otp": otp,
-        "is_active": False,
+        # "otp": otp,
+        "is_active": True,
         "created_at": datetime.utcnow().isoformat()
     }
 
     result = user_collection.insert_one(new_user)
 
-    try:
-        send_email(user.email, "Revival Network Commission - Verify Your Email", otp_html(otp))
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+    # try:
+    #     send_email(user.email, "Revival Network Commission - Verify Your Email", otp_html(otp))
+    # except Exception:
+    #     raise HTTPException(status_code=500, detail="Failed to send OTP email")
 
     return {
-        "message": "User created successfully. Check your email for OTP.",
+        "message": "User created successfully.",
         "user": {
             "id": str(result.inserted_id)
         }
